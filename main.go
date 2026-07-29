@@ -23,9 +23,11 @@ func main() {
 	defer filehandle.Close()
 
 	scanner := bufio.NewScanner(filehandle)
+	ln := 0
 	for scanner.Scan() {
+		ln++
 		if line := scanner.Text(); strings.Contains(line, query) {
-			fmt.Println(line)
+			fmt.Printf("%v: %v\n", ln, line)
 		}
 	}
 	if err := scanner.Err(); err != nil {
