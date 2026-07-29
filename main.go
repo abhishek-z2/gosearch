@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -11,7 +12,7 @@ func main() {
 		fmt.Println("Usage: gosearch <query> <filename>")
 		return
 	}
-	//query := os.Args[1]
+	query := os.Args[1]
 	file := os.Args[2]
 
 	filehandle, err := os.Open(file)
@@ -23,9 +24,12 @@ func main() {
 
 	scanner := bufio.NewScanner(filehandle)
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		if line := scanner.Text(); strings.Contains(line, query) {
+			fmt.Println(line)
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Println("Error reading file:", err)
 	}
+
 }
