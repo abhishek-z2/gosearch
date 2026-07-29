@@ -1,17 +1,31 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 )
 
 func main() {
-	//fmt.Println(os.Args)
 	if len(os.Args) < 3 {
-		fmt.Println("not enough arguments")
+		fmt.Println("Usage: gosearch <query> <filename>")
 		return
 	}
-	query := os.Args[1]
+	//query := os.Args[1]
 	file := os.Args[2]
-	fmt.Printf("query is %s , file is %s", query, file)
+
+	filehandle, err := os.Open(file)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+	defer filehandle.Close()
+
+	scanner := bufio.NewScanner(filehandle)
+	for scanner.Scan() {
+		fmt.Println(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+	}
 }
