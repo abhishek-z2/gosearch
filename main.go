@@ -2,62 +2,136 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: gosearch <query> <filename>")
-		return
-	}
-	query := os.Args[1]
-	file := os.Args[2]
+	caseInsensitive := flag.Bool("i", false, "case-insensitive search")
+	recursive := flag.Bool("r", false, "search directories recursively")
 
-	//checks if its a dir or a file
-	info, err := os.Stat(file)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	} else {
-		fmt.Println("File Info: ", info.Name())
-	}
+	flag.Parse()
 
-	//searches the file
-	err = searchFile(file, query)
-	if err != nil {
-		fmt.Println("Error searching the file: ", err)
+	args := flag.Args()
+
+	if len(args) < 2 {
+		fmt.Println("Usage: gosearch [options] <query> <filepath>")
+		flag.PrintDefaults()
 		return
 	}
 
-}
-func searchFile(file, query string) error {
-	fmt.Println(file, query)
-	filehandle, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer filehandle.Close()
+	query := args[0]
+	path := args[1]
 
-	scanner := bufio.NewScanner(filehandle)
-	ln := 0
-	found := 0
-	for scanner.Scan() {
-		ln++
-		if line := scanner.Text(); strings.Contains(line, query) {
-			fmt.Printf("%v: %v\n", ln, line)
-			found++
+	info, err := os.Stat(path)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	if info.IsDir() {
+		if !*recursive {
+			fmt.Println("Error: path is a directory (use -r to search recursively)")
+			return
 		}
+
+		err = searchDirectory(path, query, *caseInsensitive)
+		if err != nil {
+			fmt.Println("Error searching directory:", err)
+			return
+		}
+
+		return
 	}
+
+	found, err := searchFile(path, query, *caseInsensitive)
+	if err != nil {
+		fmt.Println("Error searching the file:", err)
+		return
+	}
+
 	if found == 0 {
 		fmt.Println("no matches found")
 	} else {
-		fmt.Printf("%d matches found", found)
+		fmt.Printf("%d matches found\n", found)
 	}
+}
+
+func searchFile(file, query string, caseInsensitive bool) (int, error) {
+	fileHandle, err := os.Open(file)
+	if err != nil {
+		return 0, err
+	}
+	defer fileHandle.Close()
+
+	if caseInsensitive {
+		query = strings.ToLower(query)
+	}
+
+	scanner := bufio.NewScanner(fileHandle)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+
+	lineNumber := 0
+	found := 0
+
+	for scanner.Scan() {
+		lineNumber++
+
+		line := scanner.Text()
+		searchLine := line
+
+		if caseInsensitive {
+			searchLine = strings.ToLower(line)
+		}
+
+		if strings.Contains(searchLine, query) {
+			fmt.Printf("%s:%d: %s\n", file, lineNumber, line)
+			found++
+		}
+	}
+
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
+		return found, err
+	}
+
+	return found, nil
+}
+
+func searchDirectory(dir, query string, caseInsensitive bool) error {
+	totalMatches := 0
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		found, err := searchFile(path, query, caseInsensitive)
+		if err != nil {
+			return err
+		}
+
+		totalMatches += found
+
+		return nil
+	})
+
+	if err != nil {
 		return err
 	}
+
+	if totalMatches == 0 {
+		fmt.Println("no matches found")
+	} else {
+		fmt.Printf("%d matches found\n", totalMatches)
+	}
+
 	return nil
 }
