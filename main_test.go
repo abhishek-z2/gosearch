@@ -62,13 +62,13 @@ func TestSearchFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	found, err := searchFile(file, "hello", true)
+	matches, err := searchFile(file, "hello", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if found != 2 {
-		t.Errorf("searchFile() found %d matches, want 2", found)
+	if len(matches) != 2 {
+		t.Errorf("searchFile() found %d matches, want 2", len(matches))
 	}
 }
 
@@ -85,13 +85,13 @@ func TestSearchFileIgnoreCase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	found, err := searchFile(file, "hello", false)
+	matches, err := searchFile(file, "hello", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if found != 0 {
-		t.Errorf("searchFile() found %d matches, want 0", found)
+	if len(matches) != 0 {
+		t.Errorf("searchFile() found %d matches, want 0", len(matches))
 	}
 }
 
@@ -108,13 +108,13 @@ func TestSearchFileNoMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	found, err := searchFile(file, "banana", false)
+	matches, err := searchFile(file, "banana", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if found != 0 {
-		t.Errorf("searchFile() found %d matches, want 0", found)
+	if len(matches) != 0 {
+		t.Errorf("searchFile() found %d matches, want 0", len(matches))
 	}
 }
 

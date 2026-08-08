@@ -10,7 +10,14 @@ import (
 	"strings"
 )
 
+type Match struct {
+	File       string
+	LineNumber int
+	Line       string
+}
+
 func main() {
+
 	caseInsensitive := flag.Bool("i", false, "case-insensitive search")
 	recursive := flag.Bool("r", false, "search directories recursively")
 	extension := flag.String("e", "", "only search files with this extension")
@@ -59,23 +66,34 @@ func main() {
 		return
 	}
 
-	found, err := searchFile(path, query, *caseInsensitive)
+	matches, err := searchFile(path, query, *caseInsensitive)
+
 	if err != nil {
 		fmt.Println("Error searching the file:", err)
 		return
 	}
 
-	if found == 0 {
+	//print the matches
+	for _, match := range matches {
+		fmt.Printf("%v:%v: %v\n",
+			match.File,
+			match.LineNumber,
+			match.Line,
+		)
+	}
+
+	if len(matches) == 0 {
 		fmt.Println("no matches found")
 	} else {
-		fmt.Printf("%d matches found\n", found)
+		fmt.Printf("%d matches found\n", len(matches))
 	}
 }
 
-func searchFile(file, query string, caseInsensitive bool) (int, error) {
+func searchFile(file, query string, caseInsensitive bool) ([]Match, error) {
+	matches := []Match{}
 	fileHandle, err := os.Open(file)
 	if err != nil {
-		return 0, err
+		return matches, err
 	}
 	defer fileHandle.Close()
 
@@ -87,7 +105,6 @@ func searchFile(file, query string, caseInsensitive bool) (int, error) {
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 	lineNumber := 0
-	found := 0
 
 	for scanner.Scan() {
 		lineNumber++
@@ -100,16 +117,19 @@ func searchFile(file, query string, caseInsensitive bool) (int, error) {
 		}
 
 		if strings.Contains(searchLine, query) {
-			fmt.Printf("%s:%d: %s\n", file, lineNumber, line)
-			found++
+			matches = append(matches, Match{
+				File:       file,
+				LineNumber: lineNumber,
+				Line:       line,
+			})
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return found, err
+		return matches, err
 	}
 
-	return found, nil
+	return matches, nil
 }
 
 func searchDirectory(
@@ -118,7 +138,8 @@ func searchDirectory(
 	caseInsensitive bool,
 	extensions []string,
 ) error {
-	totalMatches := 0
+	totalMatches := []Match{}
+	matches := []Match{}
 
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -137,12 +158,11 @@ func searchDirectory(
 			return nil
 		}
 
-		found, err := searchFile(path, query, caseInsensitive)
+		matches, err = searchFile(path, query, caseInsensitive)
+		totalMatches = append(totalMatches, matches...)
 		if err != nil {
 			return err
 		}
-
-		totalMatches += found
 
 		return nil
 	})
@@ -151,10 +171,17 @@ func searchDirectory(
 		return err
 	}
 
-	if totalMatches == 0 {
+	if len(totalMatches) == 0 {
 		fmt.Println("no matches found")
 	} else {
-		fmt.Printf("%d matches found\n", totalMatches)
+		fmt.Printf("%d matches found\n", len(totalMatches))
+	}
+	for _, match := range totalMatches {
+		fmt.Printf("%v:%v: %v\n",
+			match.File,
+			match.LineNumber,
+			match.Line,
+		)
 	}
 
 	return nil
