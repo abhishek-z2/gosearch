@@ -72,7 +72,7 @@ func TestSearchFile(t *testing.T) {
 	}
 }
 
-func TestSearchFileCaseSensitive(t *testing.T) {
+func TestSearchFileIgnoreCase(t *testing.T) {
 	file := t.TempDir() + "/test.txt"
 
 	content := `Hello world
@@ -86,6 +86,29 @@ func TestSearchFileCaseSensitive(t *testing.T) {
 	}
 
 	found, err := searchFile(file, "hello", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if found != 0 {
+		t.Errorf("searchFile() found %d matches, want 0", found)
+	}
+}
+
+func TestSearchFileNoMatches(t *testing.T) {
+	file := t.TempDir() + "/test.txt"
+
+	content := `Hello world
+	This is a test
+	HELLO again
+	Nothing here`
+
+	err := os.WriteFile(file, []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found, err := searchFile(file, "banana", false)
 	if err != nil {
 		t.Fatal(err)
 	}
