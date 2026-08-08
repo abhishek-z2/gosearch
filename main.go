@@ -17,6 +17,16 @@ func main() {
 
 	flag.Parse()
 
+	var extensions []string
+
+	if *extension != "" {
+		extensions = strings.Split(*extension, ",")
+
+		for i := range extensions {
+			extensions[i] = strings.TrimPrefix(strings.TrimSpace(extensions[i]), ".")
+		}
+	}
+
 	args := flag.Args()
 
 	if len(args) < 2 {
@@ -40,7 +50,7 @@ func main() {
 			return
 		}
 
-		err = searchDirectory(path, query, *caseInsensitive, *extension)
+		err = searchDirectory(path, query, *caseInsensitive, extensions)
 		if err != nil {
 			fmt.Println("Error searching directory:", err)
 			return
@@ -102,7 +112,12 @@ func searchFile(file, query string, caseInsensitive bool) (int, error) {
 	return found, nil
 }
 
-func searchDirectory(dir, query string, caseInsensitive bool, extension string) error {
+func searchDirectory(
+	dir string,
+	query string,
+	caseInsensitive bool,
+	extensions []string,
+) error {
 	totalMatches := 0
 
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -118,13 +133,8 @@ func searchDirectory(dir, query string, caseInsensitive bool, extension string) 
 			return nil
 		}
 
-		if extension != "" {
-			extension = strings.TrimPrefix(extension, ".")
-			fileExtension := filepath.Ext(path)
-
-			if fileExtension != "."+extension {
-				return nil
-			}
+		if !hasExtension(path, extensions) {
+			return nil
 		}
 
 		found, err := searchFile(path, query, caseInsensitive)
@@ -148,4 +158,20 @@ func searchDirectory(dir, query string, caseInsensitive bool, extension string) 
 	}
 
 	return nil
+}
+
+func hasExtension(path string, extensions []string) bool {
+	if len(extensions) == 0 {
+		return true
+	}
+
+	extension := strings.TrimPrefix(filepath.Ext(path), ".")
+
+	for _, allowed := range extensions {
+		if extension == allowed {
+			return true
+		}
+	}
+
+	return false
 }
