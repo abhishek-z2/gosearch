@@ -117,3 +117,11 @@ func TestSearchFileNoMatches(t *testing.T) {
 		t.Errorf("searchFile() found %d matches, want 0", found)
 	}
 }
+
+func TestSearchFileNotFound(t *testing.T) {
+	_, err := searchFile("nonexistentfile.txt", "Hello", false)
+
+	if err == nil {
+		t.Errorf("expected an error, got nil")
+	}
+}
