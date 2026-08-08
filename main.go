@@ -13,6 +13,7 @@ import (
 func main() {
 	caseInsensitive := flag.Bool("i", false, "case-insensitive search")
 	recursive := flag.Bool("r", false, "search directories recursively")
+	extension := flag.String("e", "", "only search files with this extension")
 
 	flag.Parse()
 
@@ -39,7 +40,7 @@ func main() {
 			return
 		}
 
-		err = searchDirectory(path, query, *caseInsensitive)
+		err = searchDirectory(path, query, *caseInsensitive, *extension)
 		if err != nil {
 			fmt.Println("Error searching directory:", err)
 			return
@@ -101,7 +102,7 @@ func searchFile(file, query string, caseInsensitive bool) (int, error) {
 	return found, nil
 }
 
-func searchDirectory(dir, query string, caseInsensitive bool) error {
+func searchDirectory(dir, query string, caseInsensitive bool, extension string) error {
 	totalMatches := 0
 
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -110,7 +111,20 @@ func searchDirectory(dir, query string, caseInsensitive bool) error {
 		}
 
 		if d.IsDir() {
+			if d.Name() == ".git" {
+				return filepath.SkipDir
+			}
+
 			return nil
+		}
+
+		if extension != "" {
+			extension = strings.TrimPrefix(extension, ".")
+			fileExtension := filepath.Ext(path)
+
+			if fileExtension != "."+extension {
+				return nil
+			}
 		}
 
 		found, err := searchFile(path, query, caseInsensitive)
