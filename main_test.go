@@ -53,9 +53,9 @@ func TestSearchFile(t *testing.T) {
 	file := t.TempDir() + "/test.txt"
 
 	content := `Hello world
-	This is a test
-	HELLO again
-	Nothing here`
+This is a test
+HELLO again
+Nothing here`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -68,7 +68,27 @@ func TestSearchFile(t *testing.T) {
 	}
 
 	if len(matches) != 2 {
-		t.Errorf("searchFile() found %d matches, want 2", len(matches))
+		t.Fatalf("searchFile() found %d matches, want 2", len(matches))
+	}
+
+	if matches[0].File != file {
+		t.Errorf("matches[0].File = %q, want %q", matches[0].File, file)
+	}
+
+	if matches[0].LineNumber != 1 {
+		t.Errorf("matches[0].LineNumber = %d, want 1", matches[0].LineNumber)
+	}
+
+	if matches[0].Line != "Hello world" {
+		t.Errorf("matches[0].Line = %q, want %q", matches[0].Line, "Hello world")
+	}
+
+	if matches[1].LineNumber != 3 {
+		t.Errorf("matches[1].LineNumber = %d, want 3", matches[1].LineNumber)
+	}
+
+	if matches[1].Line != "HELLO again" {
+		t.Errorf("matches[1].Line = %q, want %q", matches[1].Line, "HELLO again")
 	}
 }
 
