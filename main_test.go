@@ -92,7 +92,7 @@ Nothing here`
 	}
 }
 
-func TestSearchFileIgnoreCase(t *testing.T) {
+func TestSearchFileCaseSensitive(t *testing.T) {
 	file := t.TempDir() + "/test.txt"
 
 	content := `Hello world
