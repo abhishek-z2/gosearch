@@ -46,10 +46,10 @@ func run(args []string) error {
 	}
 
 	args = flags.Args()
-
+	flags.SetOutput(os.Stderr)
 	if len(args) < 2 {
 		flags.PrintDefaults() // uses local flag instance
-		return fmt.Errorf("Usage: gosearch [options] <query> <filepath>")
+		return fmt.Errorf("usage: gosearch [options] <query> <filepath>")
 	}
 
 	query := args[0]
