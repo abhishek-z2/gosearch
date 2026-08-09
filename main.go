@@ -18,7 +18,7 @@ type Match struct {
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -45,12 +45,12 @@ func run(args []string) error {
 		}
 	}
 
+	args = flags.Args()
+
 	if len(args) < 2 {
-		flag.PrintDefaults() //?
+		flags.PrintDefaults() // uses local flag instance
 		return fmt.Errorf("Usage: gosearch [options] <query> <filepath>")
 	}
-
-	args = flags.Args()
 
 	query := args[0]
 	path := args[1]
