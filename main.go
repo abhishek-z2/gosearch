@@ -17,19 +17,23 @@ type Match struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string) error {
 
-	caseInsensitive := flag.Bool("i", false, "case-insensitive search")
-	recursive := flag.Bool("r", false, "search directories recursively")
-	extension := flag.String("e", "", "only search files with this extension")
+	flags := flag.NewFlagSet("gosearch", flag.ContinueOnError)
 
-	flag.Parse()
+	caseInsensitive := flags.Bool("i", false, "case-insensitive search")
+	recursive := flags.Bool("r", false, "search directories recursively")
+	extension := flags.String("e", "", "only search files with this extension")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 
 	var extensions []string
 
@@ -41,12 +45,12 @@ func run() error {
 		}
 	}
 
-	args := flag.Args()
-
 	if len(args) < 2 {
 		flag.PrintDefaults() //?
 		return fmt.Errorf("Usage: gosearch [options] <query> <filepath>")
 	}
+
+	args = flags.Args()
 
 	query := args[0]
 	path := args[1]
