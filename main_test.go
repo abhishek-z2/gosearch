@@ -145,3 +145,11 @@ func TestSearchFileNotFound(t *testing.T) {
 		t.Errorf("expected an error, got nil")
 	}
 }
+
+func TestRunMissingArguments(t *testing.T) {
+	err := run([]string{})
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
