@@ -75,6 +75,14 @@ func SearchDirectory(
 			return nil
 		}
 
+		binary, err := isBinary(path)
+		if err != nil {
+			return nil
+		}
+		if binary {
+			return nil
+		}
+
 		matches, err := SearchFile(w, path, query, caseInsensitive)
 		totalCount += matches
 		if err != nil {
@@ -110,4 +118,28 @@ func hasExtension(path string, extensions []string) bool {
 	}
 
 	return false
+}
+
+// isBinary reads up to 512 bytes from path and returns true if a NUL byte is found.
+
+func isBinary(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 512)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+
+	for i := 0; i < n; i++ {
+		if buf[i] == 0 { // NUL byte check
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
