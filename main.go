@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func run(args []string) error {
 			return fmt.Errorf("Error: path is a directory (use -r to search recursively)")
 		}
 
-		err = searchDirectory(path, query, *caseInsensitive, extensions)
+		err = searchDirectory(os.Stdout, path, query, *caseInsensitive, extensions)
 		if err != nil {
 			return fmt.Errorf("error searching directory: %w", err)
 		}
@@ -73,28 +74,24 @@ func run(args []string) error {
 		return nil
 	}
 
-	matches, err := searchFile(path, query, *caseInsensitive)
+	matches, err := searchFile(os.Stdout, path, query, *caseInsensitive)
 
 	if err != nil {
 		return fmt.Errorf("error searching file: %w", err)
 	}
 
-	//print the matches
-	printMatches(matches)
-
-	if len(matches) == 0 {
+	if matches == 0 {
 		fmt.Println("no matches found")
 	} else {
-		fmt.Printf("%d matches found\n", len(matches))
+		fmt.Printf("%d matches found\n", matches)
 	}
 	return nil
 }
 
-func searchFile(file, query string, caseInsensitive bool) ([]Match, error) {
-	matches := []Match{}
+func searchFile(w io.Writer, file, query string, caseInsensitive bool) (int, error) {
 	fileHandle, err := os.Open(file)
 	if err != nil {
-		return matches, err
+		return 0, err
 	}
 	defer fileHandle.Close()
 
@@ -106,6 +103,7 @@ func searchFile(file, query string, caseInsensitive bool) ([]Match, error) {
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 	lineNumber := 0
+	matchCount := 0
 
 	for scanner.Scan() {
 		lineNumber++
@@ -118,29 +116,26 @@ func searchFile(file, query string, caseInsensitive bool) ([]Match, error) {
 		}
 
 		if strings.Contains(searchLine, query) {
-			matches = append(matches, Match{
-				File:       file,
-				LineNumber: lineNumber,
-				Line:       line,
-			})
+			matchCount++
+			fmt.Fprintf(w, "%s:%d: %s\n", file, lineNumber, line)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return matches, err
+		return matchCount, err
 	}
 
-	return matches, nil
+	return matchCount, nil
 }
 
 func searchDirectory(
+	w io.Writer,
 	dir string,
 	query string,
 	caseInsensitive bool,
 	extensions []string,
 ) error {
-	totalMatches := []Match{}
-
+	totalCount := 0
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -158,12 +153,11 @@ func searchDirectory(
 			return nil
 		}
 
-		matches, err := searchFile(path, query, caseInsensitive)
+		matches, err := searchFile(w, path, query, caseInsensitive)
+		totalCount += matches
 		if err != nil {
 			return fmt.Errorf("error searching file: %w", err)
 		}
-
-		totalMatches = append(totalMatches, matches...)
 
 		return nil
 	})
@@ -172,14 +166,11 @@ func searchDirectory(
 		return err
 	}
 
-	if len(totalMatches) == 0 {
-		fmt.Println("no matches found")
+	if totalCount == 0 {
+		fmt.Fprintln(w, "no matches found")
 	} else {
-		fmt.Printf("%d matches found\n", len(totalMatches))
+		fmt.Fprintf(w, "%d matches found\n", totalCount)
 	}
-
-	printMatches(totalMatches)
-
 	return nil
 }
 
