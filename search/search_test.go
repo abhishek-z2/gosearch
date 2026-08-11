@@ -137,3 +137,35 @@ func TestSearchFileNotFound(t *testing.T) {
 		t.Errorf("expected an error, got nil")
 	}
 }
+
+func TestIsBinary(t *testing.T) {
+	tempDir := t.TempDir()
+
+	textPath := filepath.Join(tempDir, "sample.txt")
+	err := os.WriteFile(textPath, []byte("hello world\nthis is text"), 0644)
+	if err != nil {
+		t.Fatalf("failed to create text file: %v", err)
+	}
+
+	binaryPath := filepath.Join(tempDir, "sample.bin")
+	err = os.WriteFile(binaryPath, []byte{'E', 'L', 'F', 0, 1, 2, 3}, 0644)
+	if err != nil {
+		t.Fatalf("failed to create text file: %v", err)
+	}
+
+	isBin, err := isBinary(textPath)
+	if err != nil {
+		t.Errorf("unexpected error for the text file: %v", err)
+	}
+	if isBin {
+		t.Errorf("expected text file to NOT be a binary")
+	}
+
+	isBin, err = isBinary(binaryPath)
+	if err != nil {
+		t.Errorf("unexpected error for the text file: %v", err)
+	}
+	if !isBin {
+		t.Errorf("expected binary file to BE binary")
+	}
+}
