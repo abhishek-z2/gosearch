@@ -60,7 +60,7 @@ func SearchDirectory(
 	totalCount := 0
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return nil
 		}
 
 		if d.IsDir() {
