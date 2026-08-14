@@ -44,7 +44,6 @@ func TestHasExtension(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Unexported helper inside package search: stays lowercase!
 			got := hasExtension(tt.path, tt.extensions)
 
 			if got != tt.want {
@@ -68,8 +67,12 @@ Nothing here`
 	}
 
 	var buf bytes.Buffer
-	// Call exported SearchFile
-	matches, err := SearchFile(&buf, file, "hello", true)
+	// Updated: pass Options struct with CaseInsensitive: true
+	opts := Options{
+		CaseInsensitive: true,
+	}
+
+	matches, err := SearchFile(&buf, file, "hello", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,13 +100,52 @@ Nothing here`
 		t.Fatal(err)
 	}
 
-	matches, err := SearchFile(io.Discard, file, "hello", false)
+	// Default Options (CaseInsensitive: false)
+	opts := Options{}
+
+	matches, err := SearchFile(io.Discard, file, "hello", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if matches != 0 {
 		t.Errorf("SearchFile() found %d matches, want 0", matches)
+	}
+}
+
+func TestSearchFileInvertMatch(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "test.txt")
+
+	content := `apple
+banana
+cherry`
+
+	err := os.WriteFile(file, []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	opts := Options{
+		InvertMatch: true,
+	}
+
+	matches, err := SearchFile(&buf, file, "banana", opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Out of 3 lines, 2 do not contain "banana"
+	if matches != 2 {
+		t.Fatalf("SearchFile() found %d matches, want 2", matches)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "apple") || !strings.Contains(out, "cherry") {
+		t.Errorf("unexpected inverted match output: %q", out)
+	}
+	if strings.Contains(out, "banana") {
+		t.Errorf("inverted output should not contain matched term 'banana'")
 	}
 }
 
@@ -120,7 +162,9 @@ Nothing here`
 		t.Fatal(err)
 	}
 
-	matches, err := SearchFile(io.Discard, file, "banana", false)
+	opts := Options{}
+
+	matches, err := SearchFile(io.Discard, file, "banana", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +175,8 @@ Nothing here`
 }
 
 func TestSearchFileNotFound(t *testing.T) {
-	_, err := SearchFile(io.Discard, "nonexistentfile.txt", "Hello", false)
+	opts := Options{}
+	_, err := SearchFile(io.Discard, "nonexistentfile.txt", "Hello", opts)
 
 	if err == nil {
 		t.Errorf("expected an error, got nil")
@@ -167,5 +212,32 @@ func TestIsBinary(t *testing.T) {
 	}
 	if !isBin {
 		t.Errorf("expected binary file to BE binary")
+	}
+}
+
+func TestSearchDirectory_PermissionDenied(t *testing.T) {
+	tempDir := t.TempDir()
+
+	restrictedDir := filepath.Join(tempDir, "restricted")
+	err := os.Mkdir(restrictedDir, 0755)
+	if err != nil {
+		t.Fatalf("failed to create temp folder: %v", err)
+	}
+
+	err = os.Chmod(restrictedDir, 0000)
+	if err != nil {
+		t.Fatalf("failed to chmod folder: %v", err)
+	}
+
+	defer os.Chmod(restrictedDir, 0755)
+
+	opts := Options{
+		CaseInsensitive: true,
+		Extensions:      []string{"txt"},
+	}
+
+	err = SearchDirectory(os.Stdout, restrictedDir, "test", opts)
+	if err != nil {
+		t.Errorf("expected no fatal error on unreadable directory. got: %v", err)
 	}
 }

@@ -10,14 +10,14 @@ import (
 	"strings"
 )
 
-func SearchFile(w io.Writer, file, query string, caseInsensitive bool) (int, error) {
+func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 	fileHandle, err := os.Open(file)
 	if err != nil {
 		return 0, err
 	}
 	defer fileHandle.Close()
 
-	if caseInsensitive {
+	if opts.CaseInsensitive {
 		query = strings.ToLower(query)
 	}
 
@@ -33,11 +33,13 @@ func SearchFile(w io.Writer, file, query string, caseInsensitive bool) (int, err
 		line := scanner.Text()
 		searchLine := line
 
-		if caseInsensitive {
+		if opts.CaseInsensitive {
 			searchLine = strings.ToLower(line)
 		}
 
-		if strings.Contains(searchLine, query) {
+		matched := strings.Contains(searchLine, query)
+
+		if matched != opts.InvertMatch {
 			matchCount++
 			fmt.Fprintf(w, "%s:%d: %s\n", file, lineNumber, line)
 		}
@@ -54,12 +56,12 @@ func SearchDirectory(
 	w io.Writer,
 	dir string,
 	query string,
-	caseInsensitive bool,
-	extensions []string,
+	opts Options,
 ) error {
 	totalCount := 0
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "gosearch: %v\n", err)
 			return nil
 		}
 
@@ -71,7 +73,7 @@ func SearchDirectory(
 			return nil
 		}
 
-		if !hasExtension(path, extensions) {
+		if !hasExtension(path, opts.Extensions) {
 			return nil
 		}
 
@@ -83,7 +85,7 @@ func SearchDirectory(
 			return nil
 		}
 
-		matches, err := SearchFile(w, path, query, caseInsensitive)
+		matches, err := SearchFile(w, path, query, opts)
 		totalCount += matches
 		if err != nil {
 			return fmt.Errorf("error searching file: %w", err)
