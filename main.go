@@ -25,8 +25,10 @@ func run(args []string) error {
 
 	flags := flag.NewFlagSet("gosearch", flag.ContinueOnError)
 
+	invertMatch := flags.Bool("v", false, "invert match: select non-matching lines")
 	caseInsensitive := flags.Bool("i", false, "case-insensitive search")
 	recursive := flags.Bool("r", false, "search directories recursively")
+	countOnly := flags.Bool("c", false, "returns only the number of matches")
 	extension := flags.String("e", "", "only search files with this extension")
 
 	if err := flags.Parse(args); err != nil {
@@ -41,6 +43,14 @@ func run(args []string) error {
 		for i := range extensions {
 			extensions[i] = strings.TrimPrefix(strings.TrimSpace(extensions[i]), ".")
 		}
+	}
+
+	opts := search.Options{
+		CaseInsensitive: *caseInsensitive,
+		InvertMatch:     *invertMatch,
+		Recursive:       *recursive,
+		CountOnly:       *countOnly,
+		Extensions:      extensions,
 	}
 
 	args = flags.Args()
@@ -63,7 +73,7 @@ func run(args []string) error {
 			return fmt.Errorf("Error: path is a directory (use -r to search recursively)")
 		}
 
-		err = search.SearchDirectory(os.Stdout, path, query, *caseInsensitive, extensions)
+		err = search.SearchDirectory(os.Stdout, path, query, opts)
 		if err != nil {
 			return fmt.Errorf("error searching directory: %w", err)
 		}
@@ -71,7 +81,7 @@ func run(args []string) error {
 		return nil
 	}
 
-	matches, err := search.SearchFile(os.Stdout, path, query, *caseInsensitive)
+	matches, err := search.SearchFile(os.Stdout, path, query, opts)
 
 	if err != nil {
 		return fmt.Errorf("error searching file: %w", err)
@@ -80,7 +90,7 @@ func run(args []string) error {
 	if matches == 0 {
 		fmt.Println("no matches found")
 	} else {
-		fmt.Printf("%d matches found\n", matches)
+		fmt.Printf("%d total matches found\n", matches)
 	}
 	return nil
 }

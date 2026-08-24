@@ -41,12 +41,18 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 
 		if matched != opts.InvertMatch {
 			matchCount++
-			fmt.Fprintf(w, "%s:%d: %s\n", file, lineNumber, line)
+			if !opts.CountOnly {
+				fmt.Fprintf(w, "%s:%d: %s\n", file, lineNumber, line)
+			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return matchCount, err
+	}
+
+	if opts.CountOnly && matchCount > 0 {
+		fmt.Fprintf(w, "%s: %d matches\n", file, matchCount)
 	}
 
 	return matchCount, nil
