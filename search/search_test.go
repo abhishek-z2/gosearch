@@ -241,3 +241,34 @@ func TestSearchDirectory_PermissionDenied(t *testing.T) {
 		t.Errorf("expected no fatal error on unreadable directory. got: %v", err)
 	}
 }
+
+func TestSearchFileCountOnly(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "test_count.txt")
+	content := `apple
+banana
+apple pie
+cherry`
+
+	err := os.WriteFile(file, []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	opts := Options{
+		CountOnly: true,
+	}
+
+	matches, err := SearchFile(&buf, file, "apple", opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if matches != 2 {
+		t.Errorf("SearchFile() returned %d matches, want 2", matches)
+	}
+
+	if buf.Len() != 0 {
+		t.Errorf("expected no line output when CountOnly is true, got: %q", buf.String())
+	}
+}
