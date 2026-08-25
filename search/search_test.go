@@ -353,3 +353,38 @@ func TestSearchDirectoryConcurrent_CountOnly(t *testing.T) {
 		t.Errorf("expected '3 matches found', got: %q", out)
 	}
 }
+
+func createBenchmarkDir(b *testing.B, numFiles int) string {
+	b.Helper()
+	tempDir := b.TempDir()
+
+	for i := 0; i < numFiles; i++ {
+		filePath := filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i))
+		content := "golang search test line\nanother line with query word inside\nsome random binary data "
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			b.Fatal(err)
+		}
+	}
+	return tempDir
+
+}
+
+func BenchmarkSearchDirectory(b *testing.B) {
+	dir := createBenchmarkDir(b, 500)
+	opts := Options{Recursive: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SearchDirectory(io.Discard, dir, "query", opts)
+	}
+}
+
+func BenchmarkSearchDirectoryConcurrent(b *testing.B) {
+	dir := createBenchmarkDir(b, 500)
+	opts := Options{Recursive: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SearchDirectoryConcurrent(io.Discard, dir, "query", opts)
+	}
+}
