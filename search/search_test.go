@@ -2,6 +2,7 @@ package search
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,9 +58,9 @@ func TestSearchFile(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test.txt")
 
 	content := `Hello world
-This is a test
-HELLO again
-Nothing here`
+	This is a test
+	HELLO again
+	Nothing here`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -91,9 +92,9 @@ func TestSearchFileCaseSensitive(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test.txt")
 
 	content := `Hello world
-This is a test
-HELLO again
-Nothing here`
+	This is a test
+	HELLO again
+	Nothing here`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -117,8 +118,8 @@ func TestSearchFileInvertMatch(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test.txt")
 
 	content := `apple
-banana
-cherry`
+	banana
+	cherry`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -153,9 +154,9 @@ func TestSearchFileNoMatches(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test.txt")
 
 	content := `Hello world
-This is a test
-HELLO again
-Nothing here`
+	This is a test
+	HELLO again
+	Nothing here`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -245,9 +246,9 @@ func TestSearchDirectory_PermissionDenied(t *testing.T) {
 func TestSearchFileCountOnly(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test_count.txt")
 	content := `apple
-banana
-apple pie
-cherry`
+	banana
+	apple pie
+	cherry`
 
 	err := os.WriteFile(file, []byte(content), 0644)
 	if err != nil {
@@ -268,7 +269,87 @@ cherry`
 		t.Errorf("SearchFile() returned %d matches, want 2", matches)
 	}
 
-	if buf.Len() != 0 {
-		t.Errorf("expected no line output when CountOnly is true, got: %q", buf.String())
+	expectedOutput := fmt.Sprintf("%s: 2 matches\n", file)
+	if buf.String() != expectedOutput {
+		t.Errorf("expected %q, got %q", expectedOutput, buf.String())
+	}
+}
+
+func TestSearchDirectoryConcurrent(t *testing.T) {
+	tempDir := t.TempDir()
+
+	subDir := filepath.Join(tempDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subfolder: %v", err)
+	}
+
+	file1 := filepath.Join(tempDir, "file1.txt")
+	file2 := filepath.Join(tempDir, "file2.txt")
+	ignoredFile := filepath.Join(tempDir, "file3.log")
+
+	if err := os.WriteFile(file1, []byte("match target\nno match"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file2, []byte("another target match"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ignoredFile, []byte("target should be ignored"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	opts := Options{
+		Recursive:  true,
+		Extensions: []string{"txt"},
+	}
+
+	err := SearchDirectoryConcurrent(&buf, tempDir, "target", opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := buf.String()
+
+	if !strings.Contains(out, "file1.txt") || !strings.Contains(out, "file2.txt") {
+		t.Errorf("expected matches from txt files, got %q", out)
+	}
+	if strings.Contains(out, "file3.log") {
+		t.Errorf("file to be ignored, got %q", out)
+	}
+	if !strings.Contains(out, "2 matches found") {
+		t.Errorf("expected match summary '2 matches found',got %q", out)
+	}
+}
+func TestSearchDirectoryConcurrent_CountOnly(t *testing.T) {
+	tempDir := t.TempDir()
+
+	file1 := filepath.Join(tempDir, "file1.txt")
+	file2 := filepath.Join(tempDir, "file2.txt")
+
+	if err := os.WriteFile(file1, []byte("apple pie"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file2, []byte("apple juice\napple cider"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	opts := Options{
+		Recursive: true,
+		CountOnly: true,
+	}
+
+	err := SearchDirectoryConcurrent(&buf, tempDir, "apple", opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	// CountOnly should suppress individual line outputs and only report the total summary
+	if strings.Contains(out, "apple pie") || strings.Contains(out, "apple juice") {
+		t.Errorf("expected no line outputs when CountOnly is true, got: %q", out)
+	}
+	if !strings.Contains(out, "3 matches found") {
+		t.Errorf("expected '3 matches found', got: %q", out)
 	}
 }

@@ -73,7 +73,7 @@ func run(args []string) error {
 			return fmt.Errorf("Error: path is a directory (use -r to search recursively)")
 		}
 
-		err = search.SearchDirectory(os.Stdout, path, query, opts)
+		err = search.SearchDirectoryConcurrent(os.Stdout, path, query, opts)
 		if err != nil {
 			return fmt.Errorf("error searching directory: %w", err)
 		}

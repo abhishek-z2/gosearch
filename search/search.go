@@ -7,7 +7,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
@@ -102,6 +104,77 @@ func SearchDirectory(
 
 	if err != nil {
 		return err
+	}
+
+	if totalCount == 0 {
+		fmt.Fprintln(w, "no matches found")
+	} else {
+		fmt.Fprintf(w, "%d matches found\n", totalCount)
+	}
+	return nil
+}
+
+func SearchDirectoryConcurrent(
+	w io.Writer,
+	dir string,
+	query string,
+	opts Options,
+) error {
+
+	jobs := make(chan string, 100)
+	results := make(chan Result, 100)
+
+	numWorkers := runtime.NumCPU()
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range jobs {
+				matches, err := SearchFile(w, path, query, opts)
+				results <- Result{Matches: matches, Err: err}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(jobs)
+		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "gosearch:%v\n", err)
+			}
+			if d.IsDir() {
+				if d.Name() == "git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !hasExtension(path, opts.Extensions) {
+				return nil
+			}
+			binary, err := isBinary(path)
+			if err != nil || binary {
+				return nil
+			}
+
+			jobs <- path
+			return nil
+		})
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	totalCount := 0
+	for res := range results {
+		if res.Err != nil {
+			fmt.Fprintf(os.Stderr, "gosearch error reading file: %v\n", res.Err)
+			continue
+		}
+		totalCount += res.Matches
 	}
 
 	if totalCount == 0 {
