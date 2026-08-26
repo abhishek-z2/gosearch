@@ -19,8 +19,9 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 	}
 	defer fileHandle.Close()
 
+	targetQuery := query
 	if opts.CaseInsensitive {
-		query = strings.ToLower(query)
+		targetQuery = strings.ToLower(query)
 	}
 
 	scanner := bufio.NewScanner(fileHandle)
@@ -28,10 +29,13 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 
 	lineNumber := 0
 	matchCount := 0
+	lastPrintedLine := 0 // Tracks last printed line to prevent duplicates
+
+	var history []string // rolling queue for -B
+	afterCount := 0      // remaining lines counter for -A
 
 	for scanner.Scan() {
 		lineNumber++
-
 		line := scanner.Text()
 		searchLine := line
 
@@ -39,12 +43,52 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 			searchLine = strings.ToLower(line)
 		}
 
-		matched := strings.Contains(searchLine, query)
+		matched := strings.Contains(searchLine, targetQuery)
 
 		if matched != opts.InvertMatch {
 			matchCount++
+
 			if !opts.CountOnly {
-				fmt.Fprintf(w, "%s:%d: %s\n", file, lineNumber, line)
+				// Insert a separator '--' if there is a gap between context blocks
+				if lastPrintedLine > 0 && lineNumber-len(history) > lastPrintedLine+1 && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
+					fmt.Fprintln(w, "--")
+				}
+
+				// 1. Flush queued "Before" context lines (-B)
+				for i, prevLine := range history {
+					prevNum := lineNumber - len(history) + i
+					if prevNum > lastPrintedLine {
+						printFormattedLine(w, file, prevNum, prevLine, query, opts, false)
+						lastPrintedLine = prevNum
+					}
+				}
+				history = nil // Clear history queue after printing
+
+				// 2. Print the actual matching line (with ANSI color if enabled)
+				if lineNumber > lastPrintedLine {
+					printFormattedLine(w, file, lineNumber, line, query, opts, true)
+					lastPrintedLine = lineNumber
+				}
+
+				// 3. Reset "After" context counter (-A)
+				afterCount = opts.AfterContext
+			}
+		} else {
+			if !opts.CountOnly {
+				if afterCount > 0 {
+					// Print line inside active "After" window
+					if lineNumber > lastPrintedLine {
+						printFormattedLine(w, file, lineNumber, line, query, opts, false)
+						lastPrintedLine = lineNumber
+					}
+					afterCount--
+				} else if opts.BeforeContext > 0 {
+					// Add line to rolling history queue
+					history = append(history, line)
+					if len(history) > opts.BeforeContext {
+						history = history[1:] // Maintain max size B
+					}
+				}
 			}
 		}
 	}
@@ -77,7 +121,6 @@ func SearchDirectory(
 			if d.Name() == ".git" {
 				return filepath.SkipDir
 			}
-
 			return nil
 		}
 
@@ -86,10 +129,7 @@ func SearchDirectory(
 		}
 
 		binary, err := isBinary(path)
-		if err != nil {
-			return nil
-		}
-		if binary {
+		if err != nil || binary {
 			return nil
 		}
 
@@ -109,7 +149,7 @@ func SearchDirectory(
 	if totalCount == 0 {
 		fmt.Fprintln(w, "no matches found")
 	} else {
-		fmt.Fprintf(w, "%d matches found\n", totalCount)
+		fmt.Fprintf(w, "%d total matches found\n", totalCount)
 	}
 	return nil
 }
@@ -142,10 +182,10 @@ func SearchDirectoryConcurrent(
 		defer close(jobs)
 		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "gosearch:%v\n", err)
+				fmt.Fprintf(os.Stderr, "gosearch: %v\n", err)
 			}
 			if d.IsDir() {
-				if d.Name() == "git" {
+				if d.Name() == ".git" {
 					return filepath.SkipDir
 				}
 				return nil
@@ -180,7 +220,7 @@ func SearchDirectoryConcurrent(
 	if totalCount == 0 {
 		fmt.Fprintln(w, "no matches found")
 	} else {
-		fmt.Fprintf(w, "%d matches found\n", totalCount)
+		fmt.Fprintf(w, "%d total matches found\n", totalCount)
 	}
 	return nil
 }
@@ -200,8 +240,6 @@ func hasExtension(path string, extensions []string) bool {
 
 	return false
 }
-
-// isBinary reads up to 512 bytes from path and returns true if a NUL byte is found.
 
 func isBinary(path string) (bool, error) {
 	f, err := os.Open(path)
@@ -223,4 +261,44 @@ func isBinary(path string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func printFormattedLine(w io.Writer, file string, lineNum int, line string, query string, opts Options, isMatch bool) {
+	formattedLine := line
+	if isMatch && opts.Color && !opts.InvertMatch {
+		formattedLine = colorizeMatch(line, query, opts.CaseInsensitive)
+	}
+	fmt.Fprintf(w, "%s:%d: %s\n", file, lineNum, formattedLine)
+}
+
+func colorizeMatch(line string, query string, caseInsensitive bool) string {
+	if !caseInsensitive {
+		colorMatch := fmt.Sprintf("\033[1;31m%s\033[0m", query)
+		return strings.ReplaceAll(line, query, colorMatch)
+	}
+
+	// Case-insensitive replacement preserving original casing
+	lowerLine := strings.ToLower(line)
+	lowerQuery := strings.ToLower(query)
+	var result strings.Builder
+	start := 0
+
+	for {
+		idx := strings.Index(lowerLine[start:], lowerQuery)
+		if idx == -1 {
+			result.WriteString(line[start:])
+			break
+		}
+		matchStart := start + idx
+		matchEnd := matchStart + len(query)
+
+		result.WriteString(line[start:matchStart])
+		result.WriteString("\033[1;31m")
+		result.WriteString(line[matchStart:matchEnd])
+		result.WriteString("\033[0m")
+
+		start = matchEnd
+	}
+
+	return result.String()
 }

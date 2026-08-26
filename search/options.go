@@ -5,5 +5,8 @@ type Options struct {
 	InvertMatch     bool
 	Recursive       bool
 	CountOnly       bool
+	AfterContext    int
+	BeforeContext   int
+	Color           bool
 	Extensions      []string
 }

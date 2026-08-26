@@ -30,6 +30,9 @@ func run(args []string) error {
 	recursive := flags.Bool("r", false, "search directories recursively")
 	countOnly := flags.Bool("c", false, "returns only the number of matches")
 	extension := flags.String("e", "", "only search files with this extension")
+	afterContext := flags.Int("A", 0, "print N lines after match")
+	beforeContext := flags.Int("B", 0, "print N lines before match")
+	colorOutput := flags.Bool("color", false, "enable highlighted color ouput")
 
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -51,6 +54,9 @@ func run(args []string) error {
 		Recursive:       *recursive,
 		CountOnly:       *countOnly,
 		Extensions:      extensions,
+		AfterContext:    *afterContext,
+		BeforeContext:   *beforeContext,
+		Color:           *colorOutput,
 	}
 
 	args = flags.Args()
