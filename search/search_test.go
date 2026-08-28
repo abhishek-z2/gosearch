@@ -520,7 +520,7 @@ func TestPrintResultColor(t *testing.T) {
 
 	PrintResult(&buf, results, "Hello", opts)
 
-	expected := "test.txt:1: \033[1;31mHello\033[0m world\n"
+	expected := "\033[36mtest.txt\033[0m:\033[33m1\033[0m: \033[1;31mHello\033[0m world\n"
 
 	if buf.String() != expected {
 		t.Errorf(
@@ -550,7 +550,7 @@ func TestPrintResultCaseInsensitiveColor(t *testing.T) {
 
 	PrintResult(&buf, results, "hello", opts)
 
-	expected := "test.txt:1: \033[1;31mHello\033[0m \033[1;31mHELLO\033[0m \033[1;31mhello\033[0m\n"
+	expected := "\033[36mtest.txt\033[0m:\033[33m1\033[0m: \033[1;31mHello\033[0m \033[1;31mHELLO\033[0m \033[1;31mhello\033[0m\n"
 
 	if buf.String() != expected {
 		t.Errorf(

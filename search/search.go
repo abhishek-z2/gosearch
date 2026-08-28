@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -308,14 +309,21 @@ func PrintResult(w io.Writer, results []SearchResult, query string, opts Options
 			fmt.Fprintln(w, "--")
 		}
 
+		file := result.File
+		lineNumber := strconv.Itoa(result.LineNumber)
+
+		if opts.Color {
+			file = "\033[36m" + file + "\033[0m"
+			lineNumber = "\033[33m" + lineNumber + "\033[0m"
+		}
 		line := result.Line
 
 		if result.isMatch && opts.Color && !opts.InvertMatch {
 			line = colorizeMatch(line, query, opts.CaseInsensitive)
 		}
-		fmt.Fprintf(w, "%s:%d: %s\n",
-			result.File,
-			result.LineNumber,
+		fmt.Fprintf(w, "%s:%s: %s\n",
+			file,
+			lineNumber,
 			line,
 		)
 		lastLine = result.LineNumber
