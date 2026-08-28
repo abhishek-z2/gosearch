@@ -203,9 +203,10 @@ func SearchDirectoryConcurrent(
 
 	go func() {
 		defer close(jobs)
-		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "gosearch: %v\n", err)
+				return nil
 			}
 			if d.IsDir() {
 				if d.Name() == ".git" {
@@ -224,6 +225,9 @@ func SearchDirectoryConcurrent(
 			jobs <- path
 			return nil
 		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gosearch: %v\n", err)
+		}
 	}()
 
 	go func() {
