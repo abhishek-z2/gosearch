@@ -87,11 +87,12 @@ func run(args []string) error {
 		return nil
 	}
 
-	matches, err := search.SearchFile(os.Stdout, path, query, opts)
+	results, matches, err := search.SearchFile(path, query, opts)
 
 	if err != nil {
 		return fmt.Errorf("error searching file: %w", err)
 	}
+	search.PrintResult(os.Stdout, results, query, opts)
 
 	if matches == 0 {
 		fmt.Println("no matches found")

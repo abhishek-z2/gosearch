@@ -12,10 +12,10 @@ import (
 	"sync"
 )
 
-func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
+func SearchFile(file string, query string, opts Options) ([]SearchResult, int, error) {
 	fileHandle, err := os.Open(file)
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 	defer fileHandle.Close()
 
@@ -29,6 +29,7 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 
 	lineNumber := 0
 	matchCount := 0
+	var results []SearchResult
 	lastPrintedLine := 0 // Tracks last printed line to prevent duplicates
 
 	var history []string // rolling queue for -B
@@ -50,15 +51,20 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 
 			if !opts.CountOnly {
 				// Insert a separator '--' if there is a gap between context blocks
-				if lastPrintedLine > 0 && lineNumber-len(history) > lastPrintedLine+1 && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
-					fmt.Fprintln(w, "--")
-				}
+				//if lastPrintedLine > 0 && lineNumber-len(history) > lastPrintedLine+1 && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
+				//fmt.Fprintln(w, "--")
+				//	}
 
 				// 1. Flush queued "Before" context lines (-B)
 				for i, prevLine := range history {
 					prevNum := lineNumber - len(history) + i
 					if prevNum > lastPrintedLine {
-						printFormattedLine(w, file, prevNum, prevLine, query, opts, false)
+						results = append(results, SearchResult{
+							File:       file,
+							LineNumber: prevNum,
+							Line:       prevLine,
+							isMatch:    false,
+						})
 						lastPrintedLine = prevNum
 					}
 				}
@@ -66,7 +72,12 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 
 				// 2. Print the actual matching line (with ANSI color if enabled)
 				if lineNumber > lastPrintedLine {
-					printFormattedLine(w, file, lineNumber, line, query, opts, true)
+					results = append(results, SearchResult{
+						File:       file,
+						LineNumber: lineNumber,
+						Line:       line,
+						isMatch:    true,
+					})
 					lastPrintedLine = lineNumber
 				}
 
@@ -78,8 +89,13 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 				if afterCount > 0 {
 					// Print line inside active "After" window
 					if lineNumber > lastPrintedLine {
-						printFormattedLine(w, file, lineNumber, line, query, opts, false)
 						lastPrintedLine = lineNumber
+						results = append(results, SearchResult{
+							File:       file,
+							LineNumber: lineNumber,
+							Line:       line,
+							isMatch:    false,
+						})
 					}
 					afterCount--
 				} else if opts.BeforeContext > 0 {
@@ -94,14 +110,14 @@ func SearchFile(w io.Writer, file, query string, opts Options) (int, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return matchCount, err
+		return results, matchCount, err
 	}
 
-	if opts.CountOnly && matchCount > 0 {
-		fmt.Fprintf(w, "%s: %d matches\n", file, matchCount)
-	}
+	//if opts.CountOnly && matchCount > 0 {
+	//	fmt.Fprintf(, "%s: %d matches\n", file, matchCount)
+	//}
 
-	return matchCount, nil
+	return results, matchCount, nil
 }
 
 func SearchDirectory(
@@ -133,11 +149,14 @@ func SearchDirectory(
 			return nil
 		}
 
-		matches, err := SearchFile(w, path, query, opts)
-		totalCount += matches
+		results, matches, err := SearchFile(path, query, opts)
+
 		if err != nil {
 			return fmt.Errorf("error searching file: %w", err)
 		}
+
+		PrintResult(w, results, query, opts)
+		totalCount += matches
 
 		return nil
 	})
@@ -172,8 +191,12 @@ func SearchDirectoryConcurrent(
 		go func() {
 			defer wg.Done()
 			for path := range jobs {
-				matches, err := SearchFile(w, path, query, opts)
-				results <- Result{Matches: matches, Err: err}
+				searchResults, matches, err := SearchFile(path, query, opts)
+				results <- Result{
+					Results: searchResults,
+					Matches: matches,
+					Err:     err,
+				}
 			}
 		}()
 	}
@@ -214,6 +237,7 @@ func SearchDirectoryConcurrent(
 			fmt.Fprintf(os.Stderr, "gosearch error reading file: %v\n", res.Err)
 			continue
 		}
+		PrintResult(os.Stdout, res.Results, query, opts)
 		totalCount += res.Matches
 	}
 
@@ -263,12 +287,35 @@ func isBinary(path string) (bool, error) {
 	return false, nil
 }
 
-func printFormattedLine(w io.Writer, file string, lineNum int, line string, query string, opts Options, isMatch bool) {
-	formattedLine := line
-	if isMatch && opts.Color && !opts.InvertMatch {
-		formattedLine = colorizeMatch(line, query, opts.CaseInsensitive)
+func PrintResult(w io.Writer, results []SearchResult, query string, opts Options) {
+	var lastFile string
+	lastLine := 0
+
+	for _, result := range results {
+
+		if result.File != lastFile {
+			lastFile = result.File
+			lastLine = 0
+		}
+
+		if lastLine > 0 &&
+			result.LineNumber > lastLine+1 &&
+			(opts.BeforeContext > 0 || opts.AfterContext > 0) {
+			fmt.Fprintln(w, "--")
+		}
+
+		line := result.Line
+
+		if result.isMatch && opts.Color && !opts.InvertMatch {
+			line = colorizeMatch(line, query, opts.CaseInsensitive)
+		}
+		fmt.Fprintf(w, "%s:%d: %s\n",
+			result.File,
+			result.LineNumber,
+			line,
+		)
+		lastLine = result.LineNumber
 	}
-	fmt.Fprintf(w, "%s:%d: %s\n", file, lineNum, formattedLine)
 }
 
 func colorizeMatch(line string, query string, caseInsensitive bool) string {
