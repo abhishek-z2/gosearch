@@ -242,7 +242,7 @@ func SearchDirectoryConcurrent(
 			fmt.Fprintf(os.Stderr, "gosearch error reading file: %v\n", res.Err)
 			continue
 		}
-		PrintResult(os.Stdout, res.Results, query, opts)
+		PrintResult(w, res.Results, query, opts)
 		totalCount += res.Matches
 	}
 
