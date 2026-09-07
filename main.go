@@ -33,6 +33,7 @@ func run(args []string) error {
 	afterContext := flags.Int("A", 0, "print N lines after match")
 	beforeContext := flags.Int("B", 0, "print N lines before match")
 	colorOutput := flags.Bool("color", false, "enable highlighted color ouput")
+	regex := flags.Bool("E", false, "use regular expression search")
 
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -57,6 +58,7 @@ func run(args []string) error {
 		AfterContext:    *afterContext,
 		BeforeContext:   *beforeContext,
 		Color:           *colorOutput,
+		Regex:           *regex,
 	}
 
 	args = flags.Args()

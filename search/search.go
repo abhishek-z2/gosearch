@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,6 +24,18 @@ func SearchFile(file string, query string, opts Options) ([]SearchResult, int, e
 	targetQuery := query
 	if opts.CaseInsensitive {
 		targetQuery = strings.ToLower(query)
+	}
+
+	var regex *regexp.Regexp
+
+	if opts.Regex {
+		pattern := query
+		pattern = "(?i)" + pattern
+		regex, err = regexp.Compile(pattern)
+
+		if err != nil {
+			return nil, 0, fmt.Errorf("invalid regular expression: %w", err)
+		}
 	}
 
 	scanner := bufio.NewScanner(fileHandle)
@@ -45,7 +58,12 @@ func SearchFile(file string, query string, opts Options) ([]SearchResult, int, e
 			searchLine = strings.ToLower(line)
 		}
 
-		matched := strings.Contains(searchLine, targetQuery)
+		var matched bool
+		if opts.Regex {
+			matched = regex.MatchString(line)
+		} else {
+			matched = strings.Contains(searchLine, targetQuery)
+		}
 
 		if matched != opts.InvertMatch {
 			matchCount++
@@ -319,7 +337,7 @@ func PrintResult(w io.Writer, results []SearchResult, query string, opts Options
 		line := result.Line
 
 		if result.isMatch && opts.Color && !opts.InvertMatch {
-			line = colorizeMatch(line, query, opts.CaseInsensitive)
+			line = colorizeMatch(line, query, opts.CaseInsensitive, opts.Regex)
 		}
 		fmt.Fprintf(w, "%s:%s: %s\n",
 			file,
@@ -330,7 +348,20 @@ func PrintResult(w io.Writer, results []SearchResult, query string, opts Options
 	}
 }
 
-func colorizeMatch(line string, query string, caseInsensitive bool) string {
+func colorizeMatch(line string, query string, caseInsensitive bool, regexMode bool) string {
+	if regexMode {
+		pattern := query
+		if caseInsensitive {
+			pattern = "(?i)" + pattern
+		}
+		regex, err := regexp.Compile(pattern)
+		if err != nil {
+			return line
+		}
+		return regex.ReplaceAllStringFunc(line, func(match string) string {
+			return "\033[1;31m" + match + "\033[0m"
+		})
+	}
 	if !caseInsensitive {
 		colorMatch := fmt.Sprintf("\033[1;31m%s\033[0m", query)
 		return strings.ReplaceAll(line, query, colorMatch)

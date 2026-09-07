@@ -9,4 +9,5 @@ type Options struct {
 	BeforeContext   int
 	Color           bool
 	Extensions      []string
+	Regex           bool
 }
