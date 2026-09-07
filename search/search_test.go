@@ -852,3 +852,113 @@ func BenchmarkSearchDirectoryConcurrent(b *testing.B) {
 		)
 	}
 }
+
+func TestSearchFileRegex(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "test.txt")
+
+	content := `hello world
+hello there
+goodbye world
+hello beautiful world
+`
+
+	err := os.WriteFile(file, []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		Regex: true,
+	}
+
+	results, matches, err := SearchFile(file, `hello.*world`, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if matches != 2 {
+		t.Fatalf("expected 2 matches, got %d", matches)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	if results[0].Line != "hello world" {
+		t.Fatalf("unexpected first result: %q", results[0].Line)
+	}
+
+	if results[1].Line != "hello beautiful world" {
+		t.Fatalf("unexpected second result: %q", results[1].Line)
+	}
+}
+
+func TestSearchFileRegexCaseInsensitive(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "test.txt")
+
+	content := `Hello World
+hello world
+HELLO WORLD
+goodbye
+`
+
+	err := os.WriteFile(file, []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		Regex:           true,
+		CaseInsensitive: true,
+	}
+
+	_, matches, err := SearchFile(file, `hello world`, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if matches != 3 {
+		t.Fatalf("expected 3 matches, got %d", matches)
+	}
+}
+
+func TestSearchFileInvalidRegex(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "test.txt")
+
+	err := os.WriteFile(file, []byte("hello world\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		Regex: true,
+	}
+
+	_, _, err = SearchFile(file, `[invalid`, opts)
+
+	if err == nil {
+		t.Fatal("expected error for invalid regex")
+	}
+}
+
+func TestColorizeMatchRegex(t *testing.T) {
+	opts := Options{
+		Regex: true,
+	}
+
+	result := colorizeMatch(
+		"hello foo123 world",
+		`foo[0-9]+`,
+		false,
+		opts.Regex,
+	)
+
+	expected := "hello \033[1;31mfoo123\033[0m world"
+
+	if result != expected {
+		t.Fatalf("expected %q, got %q", expected, result)
+	}
+}
