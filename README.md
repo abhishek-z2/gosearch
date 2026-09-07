@@ -8,6 +8,7 @@ lines, extension filtering, match counting, and colored output.
 - ## Features
 - Search individual files
 - Recursively search directories
+- Regex matching with `-E`
 - Case-insensitive matching with `-i`
 - Invert matches with `-v`
 - Count matches with `-c`
@@ -24,7 +25,7 @@ lines, extension filtering, match counting, and colored output.
 Make sure you have Go installed, then clone the repository:  
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/abhishek-z2/gosearch.git
 cd gosearch
 go build -o gosearch
 ```
@@ -49,6 +50,11 @@ You can then run:
 
 ```
 ./gosearch -i "hello" file.txt
+```
+- ### Regular expression search
+
+```
+./gosearch -E "hello.*world" file.txt
 ```
 - ### Invert the match
 
@@ -103,6 +109,7 @@ Both can be combined:
 |---|---|
 | `-r` | Search directories recursively |
 | `-i` | Perform a case-insensitive search |
+| `-E` | Interpret the search query as a regular expression |
 | `-v` | Select non-matching lines |
 | `-c` | Return only the number of matches |
 | `-e` | Search only files with the specified extension |
